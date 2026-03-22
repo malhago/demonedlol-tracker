@@ -1,11 +1,1 @@
-DEMONEDlol - LoL Match Tracker is a Discord bot that automatically tracks registered League of Legends players and posts match results and live game notifications to a designated Discord text channel. The bot uses the following Riot APIs:
-
-- Account v1 — to resolve Riot IDs (GameName#TagLine) to PUUIDs.
-- League v4 — to fetch ranked entries (tier, rank, LP) for tracked players and all participants in live games.
-- Match v5 — to retrieve recent match IDs and full match details (KDA, damage, CS, vision score, champion, duration, queue type).
-- Spectator v5 — to detect when a tracked player is currently in a live game and display all 10 participants with their champions and ranks.
-- Data Dragon (DDragon) — to fetch champion images and the latest game version (community resource, no API key required).
-
-The bot polls at a configurable interval (default 3 minutes) to detect new completed matches and live games. When a match ends, it posts a detailed embed showing the player's champion, KDA, CS/min, damage dealt, vision score, LP change, and a performance ranking (1-10) among all participants. When a player enters a game, it posts a live notification with champion and game mode. The bot supports multiple regions (EUW, EUNE, NA, KR, BR, JP, TR, RU, OCE) and handles rate limiting with automatic retry. It is a personal/community Discord bot, not a public-facing website or mobile app.
-
 a6be05de-720a-41a4-a540-fe3b3173f35f
