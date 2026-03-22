@@ -1,0 +1,14 @@
+{
+  "name": "lol-tracker-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord de suivi automatique des parties League of Legends",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "node-fetch": "^2.7.0"
+  }
+}
