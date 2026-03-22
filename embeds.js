@@ -2,19 +2,6 @@ const { EmbedBuilder } = require('discord.js');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TIER_EMOJIS = {
-  IRON: '<:iron:0>',
-  BRONZE: '🥉',
-  SILVER: '🥈',
-  GOLD: '🥇',
-  PLATINUM: '💠',
-  EMERALD: '💚',
-  DIAMOND: '💎',
-  MASTER: '🔮',
-  GRANDMASTER: '🏆',
-  CHALLENGER: '👑',
-};
-
 const QUEUE_NAMES = {
   420: 'Ranked Solo/Duo',
   440: 'Ranked Flex',
@@ -108,10 +95,8 @@ function formatLPChange(entry, lpChange, tierChanged, prevTier, prevRank) {
 }
 
 function formatPerformanceRank(rank) {
-  if (rank === 1) return '🏆 **MVP — #1/10**';
-  if (rank === 2) return '🥈 **#2/10**';
-  if (rank === 3) return '🥉 **#3/10**';
-  if (rank === 10) return '💀 **Dernier — #10/10**';
+  if (rank === 1) return '**MVP — #1/10**';
+  if (rank === 10) return '**Dernier — #10/10**';
   return `**#${rank}/10**`;
 }
 
@@ -228,4 +213,74 @@ function buildInGameEmbed({ player, championName, championUrl, queueName }) {
     .setFooter({ text: new Date().toLocaleTimeString('fr-FR') });
 }
 
-module.exports = { buildGameEmbed, buildInGameEmbed, getPerformanceRank };
+// ─── Profile embed ──────────────────────────────────────────────────────────
+
+const TIER_COLORS = {
+  IRON: 0x6B6B6B,
+  BRONZE: 0xCD7F32,
+  SILVER: 0xC0C0C0,
+  GOLD: 0xFFD700,
+  PLATINUM: 0x00CED1,
+  EMERALD: 0x50C878,
+  DIAMOND: 0xB9F2FF,
+  MASTER: 0x9B59B6,
+  GRANDMASTER: 0xE74C3C,
+  CHALLENGER: 0xF1C40F,
+};
+
+function buildProfileEmbed({ player, entry, peakTier, peakRank, peakLP, championStats, totalGames, emblemUrl, profileIconUrl }) {
+  const color = (entry && TIER_COLORS[entry.tier]) || 0x7289DA;
+
+  const rankStr = entry
+    ? `${entry.tier} ${entry.rank} -- ${entry.leaguePoints} LP`
+    : 'Non classe';
+
+  const wl = entry
+    ? `${entry.wins}V / ${entry.losses}D (${((entry.wins / (entry.wins + entry.losses)) * 100).toFixed(1)}%)`
+    : 'N/A';
+
+  const peakStr = peakTier
+    ? `${peakTier} ${peakRank} -- ${peakLP} LP`
+    : 'Non suivi';
+
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setAuthor({
+      name: `${player.gameName}#${player.tagLine}`,
+      iconURL: profileIconUrl || undefined,
+    })
+    .setTitle('PROFIL RANKED')
+    .setThumbnail(emblemUrl || undefined)
+    .addFields(
+      { name: 'Classement', value: rankStr, inline: true },
+      { name: 'W/L', value: wl, inline: true },
+      { name: 'Pic de saison', value: peakStr, inline: true },
+    );
+
+  if (championStats && championStats.length > 0) {
+    const lines = championStats.map((c, i) => {
+      const wr = ((c.wins / c.games) * 100).toFixed(1);
+      const kda = c.deaths === 0
+        ? `${(c.kills / c.games).toFixed(1)}/0/${(c.assists / c.games).toFixed(1)}`
+        : `${(c.kills / c.games).toFixed(1)}/${(c.deaths / c.games).toFixed(1)}/${(c.assists / c.games).toFixed(1)}`;
+      const csMin = (c.cs / c.duration * 60).toFixed(1);
+      return `\`${i + 1}.\` **${c.championName}** | ${c.games} games (${wr}% WR) | ${kda} KDA | ${csMin} CS/min`;
+    });
+
+    embed.addFields({
+      name: `Top Champions (${totalGames} dernieres parties ranked)`,
+      value: lines.join('\n'),
+      inline: false,
+    });
+  } else {
+    embed.addFields({
+      name: 'Top Champions',
+      value: 'Aucune partie ranked recente trouvee',
+      inline: false,
+    });
+  }
+
+  return embed;
+}
+
+module.exports = { buildGameEmbed, buildInGameEmbed, buildProfileEmbed, getPerformanceRank };

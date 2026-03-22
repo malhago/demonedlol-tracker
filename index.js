@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const { RiotAPI } = require('./riot');
 const { Storage } = require('./storage');
-const { buildGameEmbed, buildInGameEmbed, getPerformanceRank } = require('./embeds');
+const { buildGameEmbed, buildInGameEmbed, buildProfileEmbed, getPerformanceRank } = require('./embeds');
 require('dotenv').config();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -87,6 +87,15 @@ const commands = [
     .setDescription('Force la vérification immédiate des nouvelles parties'),
 
   new SlashCommandBuilder()
+    .setName('profile')
+    .setDescription('Affiche le profil ranked complet d\'un joueur')
+    .addStringOption(o =>
+      o.setName('summoner')
+        .setDescription('Nom#Tag (optionnel -- prend le premier joueur sinon)')
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName('live')
     .setDescription('Affiche la partie en cours d\'un joueur avec tous les participants')
     .addStringOption(o =>
@@ -101,6 +110,9 @@ const commands = [
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
+    // Purge les commandes globales (évite les doublons global + guilde)
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: [] });
+
     // Enregistre par guilde (instantané) au lieu de globalement
     const guilds = client.guilds.cache;
     for (const [guildId] of guilds) {
@@ -497,6 +509,106 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply('Vérification des nouvelles parties en cours...');
       await pollAllPlayers();
       return interaction.editReply('Vérification terminée. Les nouvelles parties ont été postées (si le salon est configuré).');
+    }
+
+    // ── /profile ───────────────────────────────────────────────────────────
+    if (commandName === 'profile') {
+      const input = interaction.options.getString('summoner');
+      const players = storage.getPlayers();
+
+      let playerData;
+      if (input) {
+        playerData = storage.findPlayer(input);
+        if (!playerData) {
+          return interaction.editReply(`**${input}** non enregistre. Utilise \`/register\` d'abord.`);
+        }
+      } else {
+        const keys = Object.keys(players);
+        if (!keys.length) {
+          return interaction.editReply('Aucun joueur enregistre. Utilise `/register`.');
+        }
+        playerData = players[keys[0]];
+      }
+
+      // Fetch summoner data for profile icon
+      const summoner = await riot.getSummonerByPuuid(playerData.puuid, playerData.platform);
+      const profileIconUrl = await riot.getProfileIconUrl(summoner.profileIconId);
+
+      // Fetch ranked entries
+      const entries = await riot.getLeagueEntries(playerData.puuid, playerData.platform);
+      const entry = riot.getRankedEntry(entries);
+
+      // Update peak rank
+      let peakTier = playerData.peakTier || null;
+      let peakRank = playerData.peakRank || null;
+      let peakLP = playerData.peakLP || null;
+
+      if (entry && entry.tier) {
+        if (!peakTier || riot.compareRank(entry.tier, entry.rank, entry.leaguePoints, peakTier, peakRank, peakLP) > 0) {
+          peakTier = entry.tier;
+          peakRank = entry.rank;
+          peakLP = entry.leaguePoints;
+        }
+      }
+
+      // Fetch recent ranked matches (20)
+      const matchCount = 20;
+      const matchIds = await riot.getRecentMatchIds(playerData.puuid, playerData.regional, matchCount, 420);
+
+      // Aggregate champion stats
+      const champMap = {};
+      for (let i = 0; i < matchIds.length; i++) {
+        try {
+          const match = await riot.getMatch(matchIds[i], playerData.regional);
+          const p = match.info.participants.find(x => x.puuid === playerData.puuid);
+          if (!p) continue;
+
+          const name = p.championName;
+          if (!champMap[name]) {
+            champMap[name] = { championName: name, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, cs: 0, duration: 0 };
+          }
+          const c = champMap[name];
+          c.games++;
+          if (p.win) c.wins++;
+          c.kills += p.kills;
+          c.deaths += p.deaths;
+          c.assists += p.assists;
+          c.cs += (p.totalMinionsKilled || 0) + (p.neutralMinionsKilled || 0);
+          c.duration += match.info.gameDuration;
+
+          // Rate limit between fetches
+          if (i < matchIds.length - 1) {
+            await new Promise(r => setTimeout(r, 300));
+          }
+        } catch (err) {
+          console.error(`Erreur fetch match ${matchIds[i]}:`, err.message);
+        }
+      }
+
+      const championStats = Object.values(champMap)
+        .sort((a, b) => b.games - a.games)
+        .slice(0, 5);
+
+      // Rank emblem URL
+      const emblemUrl = entry ? riot.getRankEmblemUrl(entry.tier) : null;
+
+      // Save peak
+      const key = `${playerData.gameName}#${playerData.tagLine}`.toLowerCase();
+      storage.setPlayer(key, { ...playerData, peakTier, peakRank, peakLP });
+
+      const embed = buildProfileEmbed({
+        player: playerData,
+        entry,
+        peakTier,
+        peakRank,
+        peakLP,
+        championStats,
+        totalGames: matchIds.length,
+        emblemUrl,
+        profileIconUrl,
+      });
+
+      return interaction.editReply({ content: '', embeds: [embed] });
     }
 
     // ── /live ──────────────────────────────────────────────────────────────────

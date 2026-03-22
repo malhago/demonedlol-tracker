@@ -72,6 +72,11 @@ class RiotAPI {
     return `https://ddragon.leagueoflegends.com/cdn/${v}/img/champion/${championName}.png`;
   }
 
+  async getProfileIconUrl(profileIconId) {
+    const v = await this.getDDragonVersion();
+    return `https://ddragon.leagueoflegends.com/cdn/${v}/img/profileicon/${profileIconId}.png`;
+  }
+
   // ─── Account & Summoner ─────────────────────────────────────────────────────
 
   async getAccountByRiotId(gameName, tagLine, regional) {
@@ -109,6 +114,24 @@ class RiotAPI {
 
   async getMatch(matchId, regional) {
     return this._fetch(`https://${regional}.api.riotgames.com/lol/match/v5/matches/${matchId}`);
+  }
+
+  // ─── Spectator v5 ──────────────────────────────────────────────────────────
+
+  getRankEmblemUrl(tier) {
+    if (!tier) return null;
+    const tierLower = tier.toLowerCase();
+    return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tierLower}.png`;
+  }
+
+  // Compare deux ranks complets: retourne > 0 si A est meilleur que B
+  compareRank(tierA, rankA, lpA, tierB, rankB, lpB) {
+    const RANK_ORDER = { IV: 0, III: 1, II: 2, I: 3 };
+    const tierDiff = (TIER_ORDER[tierA] ?? -1) - (TIER_ORDER[tierB] ?? -1);
+    if (tierDiff !== 0) return tierDiff;
+    const rankDiff = (RANK_ORDER[rankA] ?? 0) - (RANK_ORDER[rankB] ?? 0);
+    if (rankDiff !== 0) return rankDiff;
+    return (lpA ?? 0) - (lpB ?? 0);
   }
 
   // ─── Spectator v5 ──────────────────────────────────────────────────────────
