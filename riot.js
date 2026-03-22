@@ -29,8 +29,13 @@ class RiotAPI {
 
   // ─── HTTP Base ──────────────────────────────────────────────────────────────
 
-  async _fetch(url) {
+  async _fetch(url, retries = 1) {
     const res = await fetch(url, { headers: { 'X-Riot-Token': this.apiKey } });
+    if (res.status === 429 && retries > 0) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || '2') * 1000;
+      await new Promise(r => setTimeout(r, retryAfter));
+      return this._fetch(url, retries - 1);
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       const msg = body?.status?.message || res.statusText;
